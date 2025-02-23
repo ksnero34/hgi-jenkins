@@ -203,14 +203,13 @@ THE SOFTWARE.
 
     <j:if test="${layoutType!='full-screen'}">
       <footer class="page-footer jenkins-mobile-hide">
-        <div class="page-footer__flex-row">
-          <div class="page-footer__footer-id-placeholder" id="footer"></div>
-
-          <j:if test="${extensionsAvailable}">
-            <j:forEach var="pd" items="${h.pageDecorators}">
-              <st:include it="${pd}" page="footer.jelly" optional="true" />
-            </j:forEach>
-          </j:if>
+        <div class="page-footer__flex-row" style="justify-content: space-between;">
+          <div style="display: flex; align-items: center;">
+            <a class="jenkins-button jenkins-button--tertiary" href="https://docs.jenkins.io" rel="noopener noreferrer" target="_blank">
+              <l:icon src="symbol-book" class="icon-sm" />
+              ${%Documentation}
+            </a>
+          </div>
 
           <div class="page-footer__links">
             <j:if test="${!empty(it.api)}">
