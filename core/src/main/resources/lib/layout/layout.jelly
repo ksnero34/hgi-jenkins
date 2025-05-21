@@ -204,14 +204,28 @@ THE SOFTWARE.
     <j:if test="${layoutType!='full-screen'}">
       <footer class="page-footer jenkins-mobile-hide">
         <div class="page-footer__flex-row" style="justify-content: space-between;">
-          <div style="display: flex; align-items: center;">
-            <a class="jenkins-button jenkins-button--tertiary" href="https://docs.jenkins.io" rel="noopener noreferrer" target="_blank">
-              <l:icon src="symbol-book" class="icon-sm" />
-              ${%Documentation}
-            </a>
+          <div style="display: flex; gap: 8px;">
+            <div style="display: flex; align-items: center;">
+              <a class="jenkins-button jenkins-button--tertiary" rel="noopener noreferrer" target="_blank">
+                <l:icon src="symbol-book" class="icon-sm" />
+                ${%한화손해보험 CICD}
+              </a>
+            </div>
+            <div style="display: flex; align-items: center;">
+              <a class="jenkins-button jenkins-button--tertiary" href="https://docs.jenkins.io" rel="noopener noreferrer" target="_blank">
+                <l:icon src="symbol-book" class="icon-sm" />
+                ${%Documentation}
+              </a>
+            </div>
+            <div style="display: flex; align-items: center;">
+              <a class="jenkins-button jenkins-button--tertiary" href="https://gitlab.hwgeneralins.com" rel="noopener noreferrer" target="_blank">
+                <l:icon src="symbol-book" class="icon-sm" />
+                ${%Gitlab}
+              </a>
+            </div>
           </div>
 
-          <div class="page-footer__links">
+          <div class="page-footer__links" style="display: flex; gap: 8px;">
             <j:if test="${!empty(it.api)}">
               <a class="jenkins-button jenkins-button--tertiary rest-api" href="api/">REST API</a>
             </j:if>
@@ -226,6 +240,12 @@ THE SOFTWARE.
                     <l:icon src="symbol-jenkins" />
                   </div>
                   ${%About Jenkins}
+                </a>
+                <a class="jenkins-dropdown__item">
+                  <div class="jenkins-dropdown__item__icon">
+                    <l:icon src="symbol-computer" />
+                  </div>
+                  ${%Customized by minpaper@hanwha.com}
                 </a>
                 <div class="jenkins-dropdown__separator"></div>
               </l:hasPermission>
