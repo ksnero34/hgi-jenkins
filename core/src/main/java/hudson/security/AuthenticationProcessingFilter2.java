@@ -26,14 +26,14 @@ package hudson.security;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.model.User;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
 import jenkins.security.SecurityListener;
 import jenkins.security.seed.UserSeedProperty;
 import jenkins.util.SystemProperties;
@@ -62,7 +62,6 @@ public final class AuthenticationProcessingFilter2 extends UsernamePasswordAuthe
         setPasswordParameter("j_password");
     }
 
-    @SuppressFBWarnings(value = "RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT", justification = "request.getSession(true) does in fact have a side effect")
     @Override
     protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authResult) throws IOException, ServletException {
         if (SystemProperties.getInteger(SecurityRealm.class.getName() + ".sessionFixationProtectionMode", 1) == 2) {

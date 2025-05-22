@@ -39,9 +39,10 @@ import hudson.util.Secret;
 import java.io.IOException;
 import java.util.Collection;
 import jenkins.model.Jenkins;
+import jenkins.search.SearchGroup;
 import jenkins.util.SystemProperties;
 import jenkins.util.io.OnMaster;
-import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerRequest2;
 
 /**
  * Basic configuration unit in Hudson.
@@ -183,7 +184,7 @@ public interface Item extends PersistenceRoot, SearchableModelObject, AccessCont
 
     /**
      * Returns the absolute URL of this item. This relies on the current
-     * {@link StaplerRequest} to figure out what the host name is,
+     * {@link StaplerRequest2} to figure out what the host name is,
      * so can be used only during processing client requests.
      *
      * @return
@@ -248,6 +249,11 @@ public interface Item extends PersistenceRoot, SearchableModelObject, AccessCont
      * Deletes this item.
      */
     void delete() throws IOException, InterruptedException;
+
+    @Override
+    default SearchGroup getSearchGroup() {
+        return SearchGroup.get(SearchGroup.ItemSearchGroup.class);
+    }
 
     PermissionGroup PERMISSIONS = new PermissionGroup(Item.class, Messages._Item_Permissions_Title());
     Permission CREATE =

@@ -37,6 +37,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.ExtensionList;
 import hudson.PluginManager;
 import hudson.PluginWrapper;
+import hudson.ProxyConfiguration;
 import hudson.Util;
 import hudson.lifecycle.Lifecycle;
 import hudson.model.UpdateCenter.UpdateCenterJob;
@@ -48,6 +49,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLConnection;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -83,7 +85,6 @@ import jenkins.util.SystemProperties;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONException;
 import net.sf.json.JSONObject;
-import org.apache.commons.lang.StringUtils;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.DoNotUse;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
@@ -193,7 +194,7 @@ public class UpdateSite {
     @Deprecated
     public @CheckForNull Future<FormValidation> updateDirectly(final boolean signatureCheck) {
         if (! getDataFile().exists() || isDue()) {
-            return Jenkins.get().getUpdateCenter().updateService.submit(new Callable<FormValidation>() {
+            return Jenkins.get().getUpdateCenter().updateService.submit(new Callable<>() {
                 @Override public FormValidation call() throws Exception {
                     return updateDirectlyNow(signatureCheck);
                 }
@@ -201,6 +202,27 @@ public class UpdateSite {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Opens a connection to the given URL
+     * @param src the url to connect to
+     * @return A {@code URLConnection} for the given src URL
+     * @since 2.499
+     */
+    public URLConnection connect(URL src) throws IOException {
+        return ProxyConfiguration.open(src);
+    }
+
+    /**
+     * Validate the URL of the resource before downloading it.
+     *
+     * @param src The location of the resource on the network
+     * @throws IOException if the validation fails
+     * @since 2.499
+     */
+    public void preValidate(URL src) throws IOException {
+        // no validation needed in the default setup
     }
 
     /**
@@ -218,7 +240,7 @@ public class UpdateSite {
         return updateData(DownloadService.loadJSON(new URL(getUrl() + "?id=" + URLEncoder.encode(getId(), StandardCharsets.UTF_8) + "&version=" + URLEncoder.encode(Jenkins.VERSION, StandardCharsets.UTF_8))), signatureCheck);
     }
 
-    private FormValidation updateData(String json, boolean signatureCheck)
+    protected FormValidation updateData(String json, boolean signatureCheck)
             throws IOException {
 
         dataTimestamp = System.currentTimeMillis();
@@ -496,7 +518,7 @@ public class UpdateSite {
     /**
      *
      * @return the URL used by {@link jenkins.install.SetupWizard} for suggested plugins to install at setup time
-     * @since TODO
+     * @since 2.446
      */
     @Exported
     public String getSuggestedPluginsUrl() {
@@ -539,14 +561,17 @@ public class UpdateSite {
 
     /**
      * Is this the legacy default update center site?
-     * @deprecated
-     *      Will be removed, currently returns always false.
-     * @since 2.343
+     * @since 1.357
      */
-    @Deprecated
     @Restricted(NoExternalUse.class)
     public boolean isLegacyDefault() {
-        return false;
+        return isJenkinsCI();
+    }
+
+    private boolean isJenkinsCI() {
+        return url != null
+                && UpdateCenter.PREDEFINED_UPDATE_SITE_ID.equals(id)
+                && url.startsWith("http://updates.jenkins-ci.org/");
     }
 
     /**
@@ -1063,7 +1088,7 @@ public class UpdateSite {
          * {@code false} if it does; and {@code null} when the affected component isn't being offered, or it's a warning
          * for something other than core or a plugin.
          */
-        @SuppressFBWarnings(value = "NP_BOOLEAN_RETURN_NULL")
+        @SuppressFBWarnings(value = "NP_BOOLEAN_RETURN_NULL", justification = "TODO needs triage")
         public Boolean isFixable() {
             final Data data = UpdateSite.this.data;
             if (data == null) {
@@ -1299,7 +1324,11 @@ public class UpdateSite {
                 displayName = title;
             else
                 displayName = name;
-            return StringUtils.removeStart(displayName, "Jenkins ");
+            String removePrefix = "Jenkins ";
+            if (displayName != null && displayName.startsWith(removePrefix)) {
+                return displayName.substring(removePrefix.length());
+            }
+            return displayName;
         }
 
         /**
@@ -1572,7 +1601,7 @@ public class UpdateSite {
          */
         @Restricted(DoNotUse.class)
         public boolean hasWarnings() {
-            return getWarnings().size() > 0;
+            return !getWarnings().isEmpty();
         }
 
         /**

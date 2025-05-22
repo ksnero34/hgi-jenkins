@@ -32,6 +32,8 @@ import hudson.PluginManager;
 import hudson.Util;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
+import hudson.util.BootFailure;
+import hudson.util.JenkinsReloadFailed;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -317,11 +319,19 @@ public abstract class Lifecycle implements ExtensionPoint {
      * Whether {@link PluginManager#dynamicLoad(File)} should be supported at all.
      * If not, {@link RestartRequiredException} will always be thrown.
      * @return true by default
-     * @since TODO
+     * @since 2.449
      */
     @Restricted(Beta.class)
     public boolean supportsDynamicLoad() {
         return true;
+    }
+
+    /**
+     * Called when Jenkins has failed to boot.
+     * @param problem a boot failure (could be {@link JenkinsReloadFailed})
+     * @since 2.469
+     */
+    public void onBootFailure(BootFailure problem) {
     }
 
     @Restricted(NoExternalUse.class)

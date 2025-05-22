@@ -26,13 +26,13 @@ package jenkins.security;
 
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.Descriptor.FormException;
 import hudson.model.User;
 import hudson.model.UserProperty;
 import hudson.model.UserPropertyDescriptor;
+import hudson.model.userproperty.UserPropertyCategory;
 import hudson.security.ACL;
 import hudson.util.HttpResponses;
 import hudson.util.Secret;
@@ -65,7 +65,7 @@ import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerRequest2;
 import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 
@@ -88,7 +88,6 @@ public class ApiTokenProperty extends UserProperty {
      *
      * @since 1.638
      */
-    @SuppressFBWarnings(value = "MS_SHOULD_BE_FINAL", justification = "Accessible via System Groovy Scripts")
     private static /* not final */ boolean SHOW_LEGACY_TOKEN_TO_ADMINS =
             SystemProperties.getBoolean(ApiTokenProperty.class.getName() + ".showTokenToAdmins");
 
@@ -101,7 +100,6 @@ public class ApiTokenProperty extends UserProperty {
      *
      * @since 2.129
      */
-    @SuppressFBWarnings(value = "MS_SHOULD_BE_FINAL", justification = "Accessible via System Groovy Scripts")
     private static /* not final */ boolean ADMIN_CAN_GENERATE_NEW_TOKENS =
             SystemProperties.getBoolean(ApiTokenProperty.class.getName() + ".adminCanGenerateNewTokens");
 
@@ -174,7 +172,6 @@ public class ApiTokenProperty extends UserProperty {
 
     @NonNull
     @Restricted(NoExternalUse.class)
-    @SuppressFBWarnings(value = "UNSAFE_HASH_EQUALS", justification = "Used to prevent use of pre-2013 API tokens, then returning the API token value")
     /*package*/ String getApiTokenInsecure() {
         if (apiToken == null) {
             return Messages.ApiTokenProperty_NoLegacyToken();
@@ -273,7 +270,7 @@ public class ApiTokenProperty extends UserProperty {
      * Allow user to rename tokens
      */
     @Override
-    public UserProperty reconfigure(StaplerRequest req, @CheckForNull JSONObject form) throws FormException {
+    public UserProperty reconfigure(StaplerRequest2 req, @CheckForNull JSONObject form) throws FormException {
         if (form == null) {
             return this;
         }
@@ -656,6 +653,11 @@ public class ApiTokenProperty extends UserProperty {
             p.revokeAllTokensExceptOne(tokenUuid);
 
             return HttpResponses.ok();
+        }
+
+        @Override
+        public @NonNull UserPropertyCategory getUserPropertyCategory() {
+            return UserPropertyCategory.get(UserPropertyCategory.Security.class);
         }
     }
 

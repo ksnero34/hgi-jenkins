@@ -25,7 +25,11 @@
 package jenkins.model;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -37,13 +41,23 @@ import static org.junit.Assert.assertThrows;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.ExtensionList;
+import hudson.XmlFile;
 import hudson.model.Descriptor;
 import hudson.model.Failure;
 import hudson.model.Node;
+import hudson.model.Saveable;
 import hudson.model.Slave;
+import hudson.model.listeners.SaveableListener;
 import hudson.slaves.ComputerLauncher;
 import hudson.slaves.DumbSlave;
+import hudson.slaves.RetentionStrategy;
+import hudson.slaves.SlaveComputer;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
+import org.hamcrest.Description;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.Rule;
 import org.junit.Test;
 import org.jvnet.hudson.test.Issue;
@@ -52,7 +66,6 @@ import org.jvnet.hudson.test.TestExtension;
 import org.jvnet.hudson.test.recipes.LocalData;
 
 public class NodesTest {
-
     @Rule
     public JenkinsRule r = new JenkinsRule();
 
@@ -99,6 +112,10 @@ public class NodesTest {
         assertEquals(0, l.deleted);
         assertEquals(1, l.updated);
         assertEquals(1, l.created);
+        var saveableListener = ExtensionList.lookupSingleton(SaveableListenerImpl.class);
+        assertEquals(0, saveableListener.deleted);
+        r.jenkins.removeNode(newNode);
+        assertEquals(1, saveableListener.deleted);
     }
 
     @TestExtension("addNodeShouldReplaceExistingNode")
@@ -122,6 +139,16 @@ public class NodesTest {
         }
     }
 
+    @TestExtension("addNodeShouldReplaceExistingNode")
+    public static final class SaveableListenerImpl extends SaveableListener {
+        int deleted;
+
+        @Override
+        public void onDeleted(Saveable o, XmlFile file) {
+            deleted++;
+        }
+    }
+
     @Test
     @Issue("JENKINS-56403")
     public void replaceNodeShouldRemoveOldNode() throws Exception {
@@ -142,6 +169,64 @@ public class NodesTest {
         r.jenkins.getNodesObject().replaceNode(oldNode, newNode);
         r.jenkins.getNodesObject().load();
         assertNotNull(r.jenkins.getNode("foo"));
+    }
+
+    @Test
+    @Issue("JENKINS-33704")
+    public void replacingSecondNodeIsLocal() throws Exception {
+        DumbSlave nodeA = r.createSlave("nodeA", "temp", null);
+        var retentionStrategyA = new MockRetentionStrategy();
+        nodeA.setRetentionStrategy(retentionStrategyA);
+        r.jenkins.addNode(nodeA);
+        assertThat(retentionStrategyA.checkCount, equalTo(0));
+        DumbSlave nodeB = r.createSlave("nodeB", "temp", null);
+        var retentionStrategyB = new MockRetentionStrategy();
+        nodeB.setRetentionStrategy(retentionStrategyB);
+        r.jenkins.addNode(nodeB);
+        assertThat(retentionStrategyA.checkCount, equalTo(0));
+        assertThat(retentionStrategyB.checkCount, equalTo(0));
+        Jenkins.get().getNodesObject().replaceNode(nodeA, nodeA);
+        assertThat(retentionStrategyB.checkCount, equalTo(0));
+    }
+
+    @Test
+    @Issue("JENKINS-33704")
+    public void removingSecondNodeIsLocal() throws Exception {
+        DumbSlave nodeA = r.createSlave("nodeA", "temp", null);
+        var retentionStrategyA = new MockRetentionStrategy();
+        nodeA.setRetentionStrategy(retentionStrategyA);
+        r.jenkins.addNode(nodeA);
+        assertThat(retentionStrategyA.checkCount, equalTo(0));
+        DumbSlave nodeB = r.createSlave("nodeB", "temp", null);
+        var retentionStrategyB = new MockRetentionStrategy();
+        nodeB.setRetentionStrategy(retentionStrategyB);
+        r.jenkins.addNode(nodeB);
+        assertThat(retentionStrategyA.checkCount, equalTo(0));
+        assertThat(retentionStrategyB.checkCount, equalTo(0));
+        r.jenkins.removeNode(nodeA);
+        assertThat(retentionStrategyB.checkCount, equalTo(0));
+    }
+
+    @Test
+    @Issue("JENKINS-33704")
+    public void changingBuiltInNodeDoesntChangeOtherNodes() throws Exception {
+        DumbSlave nodeA = r.createSlave("nodeA", "temp", null);
+        var retentionStrategyA = new MockRetentionStrategy();
+        nodeA.setRetentionStrategy(retentionStrategyA);
+        r.jenkins.addNode(nodeA);
+        assertThat(retentionStrategyA.checkCount, equalTo(0));
+        r.jenkins.setNumExecutors(1);
+        assertThat(retentionStrategyA.checkCount, equalTo(0));
+    }
+
+    public static class MockRetentionStrategy extends RetentionStrategy.Always {
+        private int checkCount = 0;
+
+        @Override
+        public long check(SlaveComputer c) {
+            checkCount++;
+            return super.check(c);
+        }
     }
 
     private static class InvalidNode extends Slave {
@@ -222,4 +307,82 @@ public class NodesTest {
         }
     }
 
+    @Test
+    public void listenersCalledOnSetNodes() throws URISyntaxException, IOException, Descriptor.FormException {
+        var agentA = new DumbSlave("nodeA", "temp", r.createComputerLauncher(null));
+        var agentB = new DumbSlave("nodeB", "temp", r.createComputerLauncher(null));
+        var agentA2 = new DumbSlave("nodeA", "temp2", r.createComputerLauncher(null));
+        Jenkins.get().setNodes(List.of(agentA, agentB));
+        assertThat(CheckSetNodes.created, containsInAnyOrder("nodeA", "nodeB"));
+        assertThat(CheckSetNodes.updated, empty());
+        assertThat(CheckSetNodes.deleted, empty());
+        Jenkins.get().setNodes(List.of(agentA2));
+        assertThat(CheckSetNodes.created, containsInAnyOrder("nodeA", "nodeB"));
+        assertThat(CheckSetNodes.updated, contains(new DumbSlaveNameAndRemoteFSMatcher(new DumbSlavePair(agentA, agentA2))));
+        assertThat(CheckSetNodes.deleted, contains("nodeB"));
+        Jenkins.get().setNodes(List.of());
+        assertThat(CheckSetNodes.created, containsInAnyOrder("nodeA", "nodeB"));
+        assertThat(CheckSetNodes.updated, contains(new DumbSlaveNameAndRemoteFSMatcher(new DumbSlavePair(agentA, agentA2))));
+        assertThat(CheckSetNodes.deleted, containsInAnyOrder("nodeA", "nodeB"));
+    }
+
+    private record DumbSlavePair(DumbSlave oldNode, DumbSlave newNode) {
+        @Override
+        public String toString() {
+            return "NodePair{" +
+                    "oldNode=" + toStringNode(oldNode) +
+                    ", newNode=" + toStringNode(newNode) +
+                    '}';
+        }
+
+        private String toStringNode(DumbSlave node) {
+            return "(name=" + node.getNodeName() + ",remoteFS=" + node.getRemoteFS() + ")";
+        }
+    }
+
+    @TestExtension("listenersCalledOnSetNodes")
+    public static class CheckSetNodes extends NodeListener {
+        private static final List<String> created = new ArrayList<>();
+        private static final List<DumbSlavePair> updated = new ArrayList<>();
+        private static final List<String> deleted = new ArrayList<>();
+
+        @Override
+        protected void onCreated(@NonNull Node node) {
+            node.getRootDir();
+            created.add(node.getNodeName());
+        }
+
+        @Override
+        protected void onUpdated(@NonNull Node oldOne, @NonNull Node newOne) {
+            if (oldOne instanceof DumbSlave oldDumbSlave && newOne instanceof DumbSlave newDumbSlave) {
+                updated.add(new DumbSlavePair(oldDumbSlave, newDumbSlave));
+            }
+        }
+
+        @Override
+        protected void onDeleted(@NonNull Node node) {
+            deleted.add(node.getNodeName());
+        }
+    }
+
+    private static class DumbSlaveNameAndRemoteFSMatcher extends TypeSafeMatcher<DumbSlavePair> {
+        private final DumbSlavePair expected;
+
+        DumbSlaveNameAndRemoteFSMatcher(DumbSlavePair expected) {
+            this.expected = expected;
+        }
+
+        @Override
+        protected boolean matchesSafely(DumbSlavePair dumbSlavePair) {
+            return expected.oldNode.getNodeName().equals(dumbSlavePair.oldNode.getNodeName())
+                    && expected.oldNode.getRemoteFS().equals(dumbSlavePair.oldNode.getRemoteFS())
+                    && expected.newNode.getNodeName().equals(dumbSlavePair.newNode.getNodeName())
+                    && expected.newNode.getRemoteFS().equals(dumbSlavePair.newNode.getRemoteFS());
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("NodePair(").appendValue(expected).appendText(")");
+        }
+    }
 }

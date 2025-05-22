@@ -97,8 +97,8 @@ import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpRedirect;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.StaplerRequest2;
+import org.kohsuke.stapler.StaplerResponse2;
 import org.kohsuke.stapler.WebMethod;
 import org.kohsuke.stapler.export.Exported;
 import org.kohsuke.stapler.interceptor.RequirePOST;
@@ -788,7 +788,7 @@ public class SlaveComputer extends Computer {
      */
     @RequirePOST
     @Restricted(NoExternalUse.class)
-    public synchronized void doSubmitDescription(StaplerResponse rsp, @QueryParameter String description) throws IOException {
+    public synchronized void doSubmitDescription(StaplerResponse2 rsp, @QueryParameter String description) throws IOException {
         checkPermission(CONFIGURE);
 
         final Slave node = this.getNode();
@@ -828,7 +828,7 @@ public class SlaveComputer extends Computer {
 
     @RequirePOST
     @Override
-    public void doLaunchSlaveAgent(StaplerRequest req, StaplerResponse rsp) throws IOException {
+    public void doLaunchSlaveAgent(StaplerRequest2 req, StaplerResponse2 rsp) throws IOException {
         checkPermission(CONNECT);
 
         if (channel != null) {
@@ -871,12 +871,12 @@ public class SlaveComputer extends Computer {
     }
 
     @WebMethod(name = "slave-agent.jnlp") // backward compatibility
-    public HttpResponse doSlaveAgentJnlp(StaplerRequest req, StaplerResponse res) {
+    public HttpResponse doSlaveAgentJnlp(StaplerRequest2 req, StaplerResponse2 res) {
         return doJenkinsAgentJnlp(req, res);
     }
 
     @WebMethod(name = "jenkins-agent.jnlp")
-    public HttpResponse doJenkinsAgentJnlp(StaplerRequest req, StaplerResponse res) {
+    public HttpResponse doJenkinsAgentJnlp(StaplerRequest2 req, StaplerResponse2 res) {
         LOGGER.log(
                 Level.WARNING,
                 "Agent \"" + getName()
@@ -888,12 +888,12 @@ public class SlaveComputer extends Computer {
 
     class LowPermissionResponse {
         @WebMethod(name = "jenkins-agent.jnlp")
-        public HttpResponse doJenkinsAgentJnlp(StaplerRequest req, StaplerResponse res) {
+        public HttpResponse doJenkinsAgentJnlp(StaplerRequest2 req, StaplerResponse2 res) {
             return SlaveComputer.this.doJenkinsAgentJnlp(req, res);
         }
 
         @WebMethod(name = "slave-agent.jnlp") // backward compatibility
-        public HttpResponse doSlaveAgentJnlp(StaplerRequest req, StaplerResponse res) {
+        public HttpResponse doSlaveAgentJnlp(StaplerRequest2 req, StaplerResponse2 res) {
             return SlaveComputer.this.doJenkinsAgentJnlp(req, res);
         }
     }
@@ -955,6 +955,7 @@ public class SlaveComputer extends Computer {
     }
 
     @Override
+    @SuppressFBWarnings(value = "UR_UNINIT_READ_CALLED_FROM_SUPER_CONSTRUCTOR", justification = "TODO needs triage")
     protected void setNode(final Node node) {
         super.setNode(node);
         launcher = grabLauncher(node);
@@ -1116,10 +1117,14 @@ public class SlaveComputer extends Computer {
             this.ringBufferSize = ringBufferSize;
         }
 
-        @Override
         @SuppressFBWarnings(value = "ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD", justification = "field is static for the reason explained in the Javadoc for LogHolder")
-        public Void call() {
+        private void setLogHandler() {
             SLAVE_LOG_HANDLER = new RingBufferLogHandler(ringBufferSize);
+        }
+
+        @Override
+        public Void call() {
+            setLogHandler();
 
             // avoid double installation of the handler. Inbound agents can reconnect to the controller multiple times
             // and each connection gets a different RemoteClassLoader, so we need to evict them by class name,

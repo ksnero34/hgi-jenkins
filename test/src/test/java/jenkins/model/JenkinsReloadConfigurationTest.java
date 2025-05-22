@@ -1,5 +1,7 @@
 package jenkins.model;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 
 import hudson.Util;
@@ -48,7 +50,7 @@ public class JenkinsReloadConfigurationTest {
     }
 
     private void modifyNode(Node node) throws Exception {
-        replace(node.getNodeName().equals("") ? "config.xml" : String.format("nodes/%s/config.xml", node.getNodeName()), "oldLabel", "newLabel");
+        replace(node.getNodeName().isEmpty() ? "config.xml" : String.format("nodes/%s/config.xml", node.getNodeName()), "oldLabel", "newLabel");
 
         assertEquals("oldLabel", node.getLabelString());
 
@@ -120,6 +122,16 @@ public class JenkinsReloadConfigurationTest {
         desc.load();
 
         assertEquals("@newSuffix", desc.getDefaultSuffix());
+    }
+
+    @Test
+    public void loadExecutorsConfig() throws Exception {
+        assertThat(j.jenkins.getNumExecutors(), is(2));
+        assertThat(j.jenkins.toComputer().getNumExecutors(), is(2));
+        replace("config.xml", "<numExecutors>2</numExecutors>", "<numExecutors>0</numExecutors>");
+        j.jenkins.load();
+        assertThat(j.jenkins.getNumExecutors(), is(0));
+        assertThat(j.jenkins.toComputer().getNumExecutors(), is(0));
     }
 
     private Mailer.DescriptorImpl mailerDescriptor() {

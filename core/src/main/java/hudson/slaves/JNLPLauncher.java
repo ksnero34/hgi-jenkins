@@ -39,7 +39,6 @@ import jenkins.model.identity.InstanceIdentityProvider;
 import jenkins.slaves.RemotingWorkDirSettings;
 import jenkins.util.SystemProperties;
 import jenkins.websocket.WebSockets;
-import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.Symbol;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.DoNotUse;
@@ -59,6 +58,7 @@ public class JNLPLauncher extends ComputerLauncher {
      * Deprecated (only used with deprecated {@code -jnlpUrl} mode), but cannot mark it as such without breaking CasC.
      */
     @CheckForNull
+    @SuppressFBWarnings(value = "PA_PUBLIC_PRIMITIVE_ATTRIBUTE", justification = "Preserve API compatibility")
     public String tunnel;
 
     /**
@@ -176,7 +176,7 @@ public class JNLPLauncher extends ComputerLauncher {
      */
     @DataBoundSetter
     public void setTunnel(String tunnel) {
-        this.tunnel = tunnel;
+        this.tunnel = Util.fixEmptyAndTrim(tunnel);
     }
 
     @Override
@@ -214,9 +214,7 @@ public class JNLPLauncher extends ComputerLauncher {
         sb.append("-name ");
         sb.append(computerName);
         sb.append(' ');
-        if (isWebSocket()) {
-            sb.append("-webSocket ");
-        }
+        sb.append("-webSocket ");
         if (tunnel != null) {
             sb.append(" -tunnel ");
             sb.append(tunnel);
@@ -229,8 +227,8 @@ public class JNLPLauncher extends ComputerLauncher {
      * {@link Jenkins#checkGoodName(String)} saves us from most troublesome characters, but we still have to deal with
      * spaces and therefore with double quotes and backticks.
      */
-    private static String escapeUnix(String input) {
-        if (StringUtils.isAlphanumeric(input)) {
+    private static String escapeUnix(@NonNull String input) {
+        if (!input.isEmpty() && input.chars().allMatch(Character::isLetterOrDigit)) {
             return input;
         }
         Escaper escaper =
@@ -242,8 +240,8 @@ public class JNLPLauncher extends ComputerLauncher {
      * {@link Jenkins#checkGoodName(String)} saves us from most troublesome characters, but we still have to deal with
      * spaces and therefore with double quotes.
      */
-    private static String escapeWindows(String input) {
-        if (StringUtils.isAlphanumeric(input)) {
+    private static String escapeWindows(@NonNull String input) {
+        if (!input.isEmpty() && input.chars().allMatch(Character::isLetterOrDigit)) {
             return input;
         }
         Escaper escaper = Escapers.builder().addEscape('"', "\\\"").build();

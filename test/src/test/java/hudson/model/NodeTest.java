@@ -27,6 +27,8 @@ package hudson.model;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -37,6 +39,7 @@ import static org.junit.Assert.fail;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.EnvVars;
+import hudson.ExtensionList;
 import hudson.FilePath;
 import hudson.model.Node.Mode;
 import hudson.model.Queue.WaitingItem;
@@ -59,6 +62,7 @@ import java.util.Collection;
 import java.util.GregorianCalendar;
 import java.util.List;
 import jenkins.model.Jenkins;
+import jenkins.model.NodeListener;
 import jenkins.security.QueueItemAuthenticatorConfiguration;
 import org.htmlunit.HttpMethod;
 import org.htmlunit.Page;
@@ -89,6 +93,20 @@ public class NodeTest {
         j.jenkins.setSecurityRealm(j.createDummySecurityRealm());
     }
 
+    @TestExtension("testSetTemporaryOfflineCause")
+    public static class NodeListenerImpl extends NodeListener {
+        private int count;
+
+        public static int getCount() {
+            return ExtensionList.lookupSingleton(NodeListenerImpl.class).count;
+        }
+
+        @Override
+        protected void onUpdated(@NonNull Node oldOne, @NonNull Node newOne) {
+            count++;
+        }
+    }
+
     @Test
     public void testSetTemporaryOfflineCause() throws Exception {
         Node node = j.createOnlineSlave();
@@ -96,13 +114,19 @@ public class NodeTest {
         project.setAssignedLabel(j.jenkins.getLabel(node.getDisplayName()));
         OfflineCause cause = new OfflineCause.ByCLI("message");
         node.setTemporaryOfflineCause(cause);
+        assertThat(NodeListenerImpl.getCount(), is(1));
         for (ComputerListener l : ComputerListener.all()) {
             l.onOnline(node.toComputer(), TaskListener.NULL);
         }
         assertEquals("Node should have offline cause which was set.", cause, node.toComputer().getOfflineCause());
         OfflineCause cause2 = new OfflineCause.ByCLI("another message");
         node.setTemporaryOfflineCause(cause2);
-        assertEquals("Node should have original offline cause after setting another.", cause, node.toComputer().getOfflineCause());
+        assertThat(NodeListenerImpl.getCount(), is(2));
+        assertEquals("Node should have the new offline cause.", cause2, node.toComputer().getOfflineCause());
+        // Exists in some plugins
+        node.toComputer().setTemporarilyOffline(false, new OfflineCause.ByCLI("A third message"));
+        assertThat(node.getTemporaryOfflineCause(), nullValue());
+        assertThat(NodeListenerImpl.getCount(), is(3));
     }
 
     @Test
@@ -115,6 +139,8 @@ public class NodeTest {
         try (ACLContext ignored = ACL.as2(someone.impersonate2())) {
             computer.doToggleOffline("original message");
             cause = (OfflineCause.UserCause) computer.getOfflineCause();
+            assertThat(computer.getOfflineCauseReason(), is("original message"));
+            assertThat(computer.getTemporaryOfflineCauseReason(), is("original message"));
             assertTrue(cause.toString(), cause.toString().matches("^.*?Disconnected by someone@somewhere.com : original message"));
             assertEquals(someone, cause.getUser());
         }
@@ -122,6 +148,7 @@ public class NodeTest {
         try (ACLContext ignored = ACL.as2(root.impersonate2())) {
             computer.doChangeOfflineCause("new message");
             cause = (OfflineCause.UserCause) computer.getOfflineCause();
+            assertThat(computer.getTemporaryOfflineCauseReason(), is("new message"));
             assertTrue(cause.toString(), cause.toString().matches("^.*?Disconnected by root@localhost : new message"));
             assertEquals(root, cause.getUser());
 

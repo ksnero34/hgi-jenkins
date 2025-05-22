@@ -26,7 +26,6 @@ package hudson.model;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -91,10 +90,10 @@ public class ComputerSetTest {
     @Test
     public void getComputerNames() throws Exception {
         assertThat(ComputerSet.getComputerNames(), is(empty()));
-        j.createSlave("aNode", "", null);
-        assertThat(ComputerSet.getComputerNames(), contains("aNode"));
         j.createSlave("anAnotherNode", "", null);
-        assertThat(ComputerSet.getComputerNames(), containsInAnyOrder("aNode", "anAnotherNode"));
+        assertThat(ComputerSet.getComputerNames(), contains("anAnotherNode"));
+        j.createSlave("aNode", "", null);
+        assertThat(ComputerSet.getComputerNames(), contains("aNode", "anAnotherNode"));
     }
 
     @Test
@@ -174,7 +173,7 @@ public class ComputerSetTest {
                 new OfflineCause.ChannelTermination(new RuntimeException(message))
         );
 
-        WebClient wc = j.createWebClient();
+        WebClient wc = j.createWebClient().withJavaScriptEnabled(false);
         Page page = wc.getPage(wc.createCrumbedUrl(HasWidgetHelper.getWidget(j.jenkins.getComputer(), ExecutorsWidget.class).orElseThrow().getUrl() + "ajax"));
         String content = page.getWebResponse().getContentAsString();
         assertThat(content, not(containsString(message)));

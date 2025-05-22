@@ -27,6 +27,7 @@ package hudson.slaves;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
+import jenkins.model.Jenkins;
 import jenkins.security.SlaveToMasterCallable;
 import jenkins.slaves.RemotingWorkDirSettings;
 import org.htmlunit.Page;
@@ -58,6 +60,7 @@ import org.junit.rules.TemporaryFolder;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.LoggerRule;
+import org.jvnet.hudson.test.SimpleCommandLauncher;
 import org.jvnet.hudson.test.SmokeTest;
 import org.jvnet.hudson.test.recipes.LocalData;
 
@@ -110,6 +113,31 @@ public class JNLPLauncherTest {
                 jnlpLauncher.getWorkDirSettings());
         assertTrue("Work directory should be disabled for the migrated agent",
                 jnlpLauncher.getWorkDirSettings().isDisabled());
+    }
+
+    @Issue("JENKINS-73011")
+    @SuppressWarnings("deprecation")
+    @Test
+    public void deprecatedFields() throws Exception {
+        var launcher = new JNLPLauncher();
+        launcher.setWebSocket(true);
+        launcher.setWorkDirSettings(new RemotingWorkDirSettings(false, null, "remoting2", false));
+        launcher.setTunnel("someproxy");
+        var agent = j.createSlave();
+        agent.setLauncher(launcher);
+        agent = j.configRoundtrip(agent);
+        launcher = (JNLPLauncher) agent.getLauncher();
+        assertThat(launcher.isWebSocket(), is(true));
+        assertThat(launcher.getWorkDirSettings().getInternalDir(), is("remoting2"));
+        assertThat(launcher.getTunnel(), is("someproxy"));
+        launcher = new JNLPLauncher();
+        launcher.setWebSocket(true);
+        agent.setLauncher(launcher);
+        agent = j.configRoundtrip(agent);
+        launcher = (JNLPLauncher) agent.getLauncher();
+        assertThat(launcher.isWebSocket(), is(true));
+        assertThat(launcher.getWorkDirSettings().getInternalDir(), is("remoting"));
+        assertThat(launcher.getTunnel(), nullValue());
     }
 
     @Test
@@ -208,6 +236,18 @@ public class JNLPLauncherTest {
 
         Thread.sleep(500);
         assertTrue(c.isOffline());
+    }
+
+    @Test
+    public void changeLauncher() throws Exception {
+        Computer c = addTestAgent(false);
+        var name = c.getName();
+        var node = c.getNode();
+        assertThat(c.isLaunchSupported(), is(false));
+        var nodeCopy = (Slave) Jenkins.XSTREAM2.fromXML(Jenkins.XSTREAM2.toXML(node));
+        nodeCopy.setLauncher(new SimpleCommandLauncher("true"));
+        Jenkins.get().getNodesObject().replaceNode(node, nodeCopy);
+        assertThat(Jenkins.get().getComputer(name).isLaunchSupported(), is(true));
     }
 
     /**
