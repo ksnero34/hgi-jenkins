@@ -45,7 +45,7 @@ THE SOFTWARE.
             <div class="simple-page" role="main">
                 <div class="app-jenkins-booting">
                     <div class="logo">
-                      <img src="${imagesURL}/svgs/logo.svg" alt="Jenkins logo" />
+                      <img src="${imagesURL}/svgs/hanwha-logo.svg" alt="Jenkins logo" />
                     </div>
                     <h1 class="loading">
                         <l:spinner text="${%Please wait while Jenkins is restarting}" />
